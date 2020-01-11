@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>微信的网页授权使用</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.4.1/jquery.js"></script>
+</head>
+
+<body>
+  <a>1.获取code</a>
+  <button id="btn_web_token">3.1获取网页授权专有token</button>
+  <button id="btn_web_refresh_token">3.2刷新网页授权专有token</button>
+  <button id="btn_user_infor">4.获取用户信息</button>
+  <button id="btn_is_access_token">5.校验网页授权专有token</button>
+</body>
+<script>
+  (function () {
+    // 网页授权 https://developers.weixin.qq.com/doc/offiaccount/OA_Web_Apps/Wechat_webpage_authorization.html#0
+
+    var config = {
+      appid: "wx464825d8e60bd635",
+      redirect_uri: "http://pay.yeahyeahyeah.cn/code.html",    // 协议带上http:// || https://
+      scope: "snsapi_userinfo",                          // snsapi_base || snsapi_userinfo
+      state: "STATE",
+
+      secret: "60bcc374ef2792277a2ef2b003b1d602",
+      grant_type: "authorization_code",
+      code: "",
+
+      openid: "",
+      access_token: "",
+      lang: "zh_CN"                                  // 返回国家地区语言版本，zh_CN 简体，zh_TW 繁体，en 英语
+    }
+
+    function getCodeUrl(config) {
+      var code_url = `https://open.weixin.qq.com/connect/oauth2/authorize?appid=${config.appid}&redirect_uri=${encodeURIComponent(config.redirect_uri)}&response_type=code&scope=${config.scope}&state=${config.state}#wechat_redirect`;
+      return code_url
+    }
+
+    function getQueryString(query, code_url) {
+      // 获取code值
+      var _arr = (code_url.split("?")[1]).split("&")
+      for (var i = 0; i < _arr.length; i++) {
+        var _k = _arr[i].split("=")[0]
+        var _v = _arr[i].split("=")[1]
+        if (_k == query) {
+          return _v
+        }
+      }
+    }
+
+    function getAccessTokenUrl(code) {
+      var access_token_url = `https://api.weixin.qq.com/sns/oauth2/access_token?appid=${config.appid}&secret=${config.secret}&code=${code}&grant_type=${config.grant_type}`
+      return access_token_url
+    }
+
+    // 1. 跳转
+    $("a").attr("href", getCodeUrl(config))
+
+    // 2.获取code
+    config.code = getQueryString("code", window.location.href) || ""
+    console.log("code:", config.code)
+
+    // 直接请求微信服务器会有跨域问题
+    // 3. 获取网页授权access_token
+    // $("#btn_web_token").on("click", function () {
+    //   $.get(getAccessTokenUrl(config.code), function (result, status) {
+    //     console.log(result)
+    //   })
+    // })
+
+    // 3.1 获取网页授权access_token 和 openid
+    $("#btn_web_token").on("click", function () {
+      var url = "http://pay.yeahyeahyeah.cn/api/getWebAccessToken"
+      var data = { code: config.code }
+      $.ajax({
+        type: 'POST',
+        url: url,
+        data: data,
+        success: function (result) {
+          console.log("3.1 获取网页授权access_token", result)
+          config.access_token = result["access_token"]
+          config.openid = result["openid"]
+          config.unionid = result["unionid"]
+          config.refresh_token = result["refresh_token"]
+          config.expires_in = result["expires_in"]
+          config.scope = result["scope"]
+        },
+        fail: function (err) {
+          console.log("获取access_token失败", err)
+        },
+        dataType: "json"
+      });
+    })
+
+    // 3.2刷新access_token（如果需要）
+    $("#btn_web_refresh_token").on("click", function () {
+      var url = "http://pay.yeahyeahyeah.cn/api/getRefreshToken"
+      var data = { refresh_token: config.refresh_token }
+      $.ajax({
+        type: 'POST',
+        url: url,
+        data: data,
+        success: function (result) {
+          console.log("3.2刷新access_token", result)
+          config.access_token = result["access_token"]
+          config.openid = result["openid"]
+          config.unionid = result["unionid"]
+          config.refresh_token = result["refresh_token"]
+          config.expires_in = result["expires_in"]
+          config.scope = result["scope"]
+        },
+        fail: function (err) {
+          console.log("获取刷新access_token失败", err)
+        },
+        dataType: "json"
+      });
+    })
+
+
+    // 4. 获取用户信息
+    $("#btn_user_infor").on("click", function () {
+      var url = "http://pay.yeahyeahyeah.cn/api/getUserInformation";
+      var data = {
+        access_token: config.access_token,
+        openid: config.openid,
+        lang: config.lang,
+      }
+      $.ajax({
+        type: 'POST',
+        url: url,
+        data: data,
+        success: function (result) {
+          console.log("4. 获取用户信息", result)
+        },
+        fail: function (err) {
+          console.log("获取getUserInformation失败", err)
+        },
+        dataType: "json"
+      });
+    })
+
+
+    // 5.检验授权凭证（access_token）是否有效
+    $("#btn_is_access_token").on("click", function () {
+      var url = "http://pay.yeahyeahyeah.cn/api/isAccessTokenTrue";
+      var data = {
+        access_token: config.access_token,
+        openid: config.openid
+      }
+      $.ajax({
+        type: 'POST',
+        url: url,
+        data: data,
+        success: function (result) {
+          if (result.errcode === "0") {
+            // { "errcode":0,"errmsg":"ok"}
+            console.log("5.检验授权凭证",result)
+          } else {
+            // { "errcode":40003,"errmsg":"invalid openid"}
+            console.log(result)
+          }
+        },
+        fail: function (err) {
+          console.log("5.检验授权凭证失败", err)
+        },
+        dataType: "json"
+      });
+    })
+
+  })()
+</script>
+
+</html>
