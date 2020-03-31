@@ -6,8 +6,8 @@ var bodyParser = require('body-parser');
 
 
 var config = {
-  appid: "wx464825d8e60bd635",
-  secret: "60bcc374ef2792277a2ef2b003b1d602",
+  appid: "",
+  secret: "",
   grant_type: "authorization_code",
 
   openid: "",
